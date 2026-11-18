@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sre-ai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sre_ai
+      POSTGRES_PASSWORD: sre_ai_password
+      POSTGRES_DB: sre_ai_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sre_ai -d sre_ai_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
