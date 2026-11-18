@@ -40,6 +40,37 @@ export interface ApiResponse<T> {
   errors?: Record<string, string[]>;
 }
 
+export interface GitHubInstallation {
+  id: string;
+  installationId: string;
+  accountLogin: string;
+  accountType: string;
+  createdAt: string;
+}
+
+export interface AccessibleRepository {
+  id: number;
+  name: string;
+  fullName: string;
+  ownerLogin: string;
+  defaultBranch: string;
+  isPrivate: boolean;
+  htmlUrl: string;
+  isSelected: boolean;
+}
+
+export interface SavedRepository {
+  id: string;
+  githubRepoId: number;
+  name: string;
+  fullName: string;
+  ownerLogin: string;
+  defaultBranch: string;
+  isPrivate: boolean;
+  htmlUrl: string;
+  createdAt: string;
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || "";
 
 export async function apiRequest<T>(
@@ -121,5 +152,69 @@ export const authApi = {
     await apiRequest<ApiResponse<void>>("/api/v1/auth/logout", {
       method: "POST",
     });
+  },
+};
+
+export const githubApi = {
+  async getInstallUrl(): Promise<{ url: string; state: string }> {
+    const res = await apiRequest<ApiResponse<{ url: string; state: string }>>(
+      "/api/v1/github/install",
+    );
+    if (!res.data) throw new Error("Failed to get installation URL");
+    return res.data;
+  },
+
+  async getInstallation(): Promise<{
+    connected: boolean;
+    installation: GitHubInstallation | null;
+  }> {
+    const res = await apiRequest<
+      ApiResponse<{
+        connected: boolean;
+        installation: GitHubInstallation | null;
+      }>
+    >("/api/v1/github/installation");
+    if (!res.data) throw new Error("Failed to get installation status");
+    return res.data;
+  },
+
+  async disconnect(): Promise<void> {
+    await apiRequest<ApiResponse<void>>("/api/v1/github/installation", {
+      method: "DELETE",
+    });
+  },
+
+  async getRepositories(search?: string): Promise<AccessibleRepository[]> {
+    const query = search ? `?search=${encodeURIComponent(search)}` : "";
+    const res = await apiRequest<
+      ApiResponse<{ repositories: AccessibleRepository[] }>
+    >(`/api/v1/github/repositories${query}`);
+    return res.data?.repositories || [];
+  },
+
+  async selectRepository(repo: {
+    repoId: number;
+    name: string;
+    fullName: string;
+    ownerLogin: string;
+    defaultBranch: string;
+    isPrivate: boolean;
+    htmlUrl: string;
+  }): Promise<SavedRepository> {
+    const res = await apiRequest<
+      ApiResponse<{ repository: SavedRepository }>
+    >("/api/v1/github/repositories/select", {
+      method: "POST",
+      body: JSON.stringify(repo),
+    });
+    if (!res.data?.repository) throw new Error("Failed to save repository");
+    return res.data.repository;
+  },
+
+  async getSelectedRepositories(): Promise<SavedRepository[]> {
+    const res = await apiRequest<
+      ApiResponse<{ repositories: SavedRepository[] }>
+    >("/api/v1/github/repositories/selected");
+    return res.data?.repositories || [];
   },
 };

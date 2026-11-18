@@ -17,12 +17,23 @@ const envSchema = z.object({
         : "",
     ),
   JWT_EXPIRES_IN: z.string().default("15m"),
+
+  // GitHub App Configuration
+  GITHUB_APP_ID: z.string().optional().default(""),
+  GITHUB_APP_PRIVATE_KEY: z.string().optional().default(""),
+  GITHUB_APP_NAME: z.string().default("sre-ai-app"),
+  GITHUB_APP_SLUG: z.string().default("sre-ai-app"),
+  GITHUB_CLIENT_ID: z.string().optional().default(""),
+  GITHUB_CLIENT_SECRET: z.string().optional().default(""),
+  GITHUB_CALLBACK_URL: z
+    .string()
+    .default("http://localhost:3000/api/v1/github/callback"),
 });
 
 const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
-  console.error("Invalid environment variables:");
+  console.error("❌ Invalid environment variables:");
   console.error(parsed.error.flatten().fieldErrors);
   process.exit(1);
 }

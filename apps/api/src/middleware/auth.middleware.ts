@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { verifyToken } from "../modules/auth/auth.service";
+import ApiError from "../utils/errors";
 import { logger } from "../config/logger";
 
 declare global {
@@ -18,30 +19,25 @@ export async function requireAuth(
   res: Response,
   next: NextFunction,
 ) {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    logger.warn(
-      "Authentication failure: missing or malformed Authorization header",
-    );
-    res.status(401).json({
-      success: false,
-      message: "Authorization header with Bearer token is required",
-    });
-    return;
-  }
-
-  const token = authHeader.substring(7).trim();
-  if (!token) {
-    logger.warn("Authentication failure: empty Bearer token");
-    res.status(401).json({
-      success: false,
-      message: "Authentication token is required",
-    });
-    return;
-  }
-
   try {
+    const authHeader = req.headers.authorization;
+    let token: string | undefined;
+
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.substring(7).trim();
+    } else if (req.cookies && typeof req.cookies.token === "string") {
+      token = req.cookies.token.trim();
+    }
+
+    if (!token) {
+      logger.warn(
+        "Authentication failure: missing or malformed Authorization header",
+      );
+      return next(
+        ApiError.unAuthorized("Authorization header with Bearer token is required"),
+      );
+    }
+
     const payload = await verifyToken(token);
     req.user = {
       id: payload.userId,
@@ -54,9 +50,8 @@ export async function requireAuth(
     logger.warn("Authentication failure: token verification failed", {
       reason: errMessage,
     });
-    res.status(401).json({
-      success: false,
-      message: "Invalid or expired authentication token",
-    });
+    return next(
+      ApiError.unAuthorized("Invalid or expired authentication token"),
+    );
   }
 }

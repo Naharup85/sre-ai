@@ -8,6 +8,13 @@
       "when": 1795020308854,
       "tag": "0000_lean_madame_hydra",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795024299353,
+      "tag": "0001_milky_moira_mactaggert",
+      "breakpoints": true
     }
   ]
 }

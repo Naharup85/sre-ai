@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -39,8 +39,14 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 
 export function RegisterPage() {
   const navigate = useNavigate();
-  const { register: registerAuth } = useAuth();
+  const { register: registerAuth, isAuthenticated, isLoading } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      navigate("/", { replace: true });
+    }
+  }, [isAuthenticated, isLoading, navigate]);
 
   const {
     register,
@@ -67,6 +73,14 @@ export function RegisterPage() {
       setServerError(message);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#09090b]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#fafafa]" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#09090b] px-4 py-12">

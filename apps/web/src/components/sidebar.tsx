@@ -83,7 +83,7 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="border-t border-[#27272a] px-4 py-2.5">
-        <p className="text-[10px] text-[#71717a]">Phase 2 — Authentication</p>
+        <p className="text-[10px] text-[#71717a]">Phase 3 — GitHub Integration</p>
       </div>
     </aside>
   );

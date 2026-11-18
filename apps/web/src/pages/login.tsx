@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -35,11 +35,17 @@ interface LocationState {
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth();
+  const { login, isAuthenticated, isLoading } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
 
   const state = location.state as LocationState | null;
   const from = state?.from?.pathname || "/";
+
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, isLoading, from, navigate]);
 
   const {
     register,
@@ -64,6 +70,14 @@ export function LoginPage() {
       setServerError(message);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#09090b]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#fafafa]" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#09090b] px-4 py-12">
