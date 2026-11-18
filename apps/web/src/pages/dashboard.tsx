@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { FolderGit2, Plus, Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -7,15 +8,28 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { authApi } from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
 
 export function DashboardPage() {
+  const { user: localUser } = useAuth();
+
+  const { data: user } = useQuery({
+    queryKey: ["currentUser"],
+    queryFn: () => authApi.getMe(),
+    initialData: localUser ?? undefined,
+    staleTime: 60 * 1000,
+  });
+
+  const displayName = user?.name || localUser?.name || "Developer";
+
   return (
     <div className="space-y-8">
       {/* Header */}
       <div>
         <h1 className="text-lg font-semibold text-[#fafafa]">Dashboard</h1>
         <p className="mt-1 text-sm text-[#a1a1aa]">
-          Welcome to SRE AI. Deploy and manage your applications.
+          Welcome back, {displayName}. Deploy and manage your applications.
         </p>
       </div>
 

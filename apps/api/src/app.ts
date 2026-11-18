@@ -3,10 +3,12 @@ import cors from "cors";
 import { env } from "./config/env";
 import { requestLogger } from "./middleware/logger";
 import { errorHandler, notFoundHandler } from "./middleware/error";
+import authRoutes from "./modules/auth/auth.routes";
+import ApiResponse from "./utils/response";
 
 const app = express();
 
-// Middleware
+// Global middleware
 app.use(
   cors({
     origin: env.FRONTEND_URL,
@@ -18,11 +20,11 @@ app.use(requestLogger);
 
 // Health check
 app.get("/api/v1/health", (_req, res) => {
-  res.json({
-    success: true,
-    message: "SRE AI API is running",
-  });
+  ApiResponse.success(res, null, "SRE AI API is running");
 });
+
+// Authentication routes
+app.use("/api/v1/auth", authRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
