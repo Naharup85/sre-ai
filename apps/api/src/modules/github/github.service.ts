@@ -160,8 +160,20 @@ export class GitHubService {
 
   async listAccessibleRepositories(
     userId: string,
-    search?: string,
-  ): Promise<AccessibleRepository[]> {
+    options?: {
+      search?: string;
+      page?: number;
+      perPage?: number;
+    },
+  ): Promise<{
+    repositories: AccessibleRepository[];
+    pagination: {
+      page: number;
+      perPage: number;
+      total: number;
+      totalPages: number;
+    };
+  }> {
     const [inst] = await db
       .select()
       .from(githubInstallations)
@@ -214,8 +226,8 @@ export class GitHubService {
       isSelected: selectedSet.has(r.id),
     }));
 
-    if (search && search.trim().length > 0) {
-      const query = search.trim().toLowerCase();
+    if (options?.search && options.search.trim().length > 0) {
+      const query = options.search.trim().toLowerCase();
       accessible = accessible.filter(
         (r) =>
           r.name.toLowerCase().includes(query) ||
@@ -223,7 +235,22 @@ export class GitHubService {
       );
     }
 
-    return accessible;
+    const total = accessible.length;
+    const page = options?.page && options.page > 0 ? options.page : 1;
+    const perPage = options?.perPage && options.perPage > 0 ? options.perPage : 100;
+    const totalPages = Math.ceil(total / perPage) || 1;
+    const startIndex = (page - 1) * perPage;
+    const paginatedRepos = accessible.slice(startIndex, startIndex + perPage);
+
+    return {
+      repositories: paginatedRepos,
+      pagination: {
+        page,
+        perPage,
+        total,
+        totalPages,
+      },
+    };
   }
 
   async selectRepository(userId: string, input: SelectRepoInput) {
@@ -236,6 +263,32 @@ export class GitHubService {
     if (!inst) {
       throw ApiError.badRequest(
         "GitHub App is not connected. Please connect GitHub first.",
+      );
+    }
+
+    // Verify repository is accessible through user's installation
+    const octokit = await getInstallationClient(Number(inst.installationId));
+    try {
+      const { data } = await octokit.rest.apps.listReposAccessibleToInstallation({
+        per_page: 100,
+      });
+      const isAccessible = data.repositories.some((r) => r.id === input.repoId);
+      if (!isAccessible) {
+        throw ApiError.forbidden(
+          "Repository is not accessible to your GitHub App installation",
+        );
+      }
+    } catch (err: any) {
+      if (err instanceof ApiError) throw err;
+      logger.error("GitHub API error verifying repository access", {
+        userId,
+        error: err.message,
+      });
+      if (err.status === 403 || err.status === 429) {
+        throw ApiError.forbidden("GitHub API rate limit exceeded or access forbidden");
+      }
+      throw ApiError.internalServerError(
+        `Failed to verify repository with GitHub: ${err.message}`,
       );
     }
 
@@ -278,6 +331,40 @@ export class GitHubService {
     });
 
     return saved;
+  }
+
+  async removeSelectedRepository(userId: string, repositoryId: string) {
+    const [existing] = await db
+      .select()
+      .from(repositories)
+      .where(
+        and(
+          eq(repositories.id, repositoryId),
+          eq(repositories.userId, userId),
+        ),
+      )
+      .limit(1);
+
+    if (!existing) {
+      throw ApiError.notFound("Repository not found or does not belong to user");
+    }
+
+    await db
+      .delete(repositories)
+      .where(
+        and(
+          eq(repositories.id, repositoryId),
+          eq(repositories.userId, userId),
+        ),
+      );
+
+    logger.info("Selected repository removed", {
+      userId,
+      repositoryId,
+      repoName: existing.name,
+    });
+
+    return existing;
   }
 
   async getSelectedRepositories(userId: string) {

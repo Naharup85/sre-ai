@@ -22,7 +22,16 @@ export const selectRepoSchema = z.object({
 
 export const searchReposSchema = z.object({
   search: z.string().optional(),
+  page: z.coerce.number().int().positive().default(1),
+  per_page: z.coerce.number().int().positive().max(100).optional(),
+  perPage: z.coerce.number().int().positive().max(100).optional(),
+});
+
+export const repoParamSchema = z.object({
+  id: z.string().min(1, "Repository ID is required"),
 });
 
 export type CallbackQuery = z.infer<typeof callbackQuerySchema>;
 export type SelectRepoInput = z.infer<typeof selectRepoSchema>;
+export type SearchReposQuery = z.infer<typeof searchReposSchema>;
+export type RepoParam = z.infer<typeof repoParamSchema>;

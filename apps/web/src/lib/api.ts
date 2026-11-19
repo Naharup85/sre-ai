@@ -71,6 +71,18 @@ export interface SavedRepository {
   createdAt: string;
 }
 
+export interface PaginationInfo {
+  page: number;
+  perPage: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface AccessibleRepositoriesResponse {
+  repositories: AccessibleRepository[];
+  pagination?: PaginationInfo;
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || "";
 
 export async function apiRequest<T>(
@@ -184,12 +196,26 @@ export const githubApi = {
     });
   },
 
-  async getRepositories(search?: string): Promise<AccessibleRepository[]> {
-    const query = search ? `?search=${encodeURIComponent(search)}` : "";
+  async getRepositories(
+    search?: string,
+    page?: number,
+    perPage?: number,
+  ): Promise<AccessibleRepositoriesResponse> {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (page) params.set("page", String(page));
+    if (perPage) params.set("per_page", String(perPage));
+    const query = params.toString() ? `?${params.toString()}` : "";
     const res = await apiRequest<
-      ApiResponse<{ repositories: AccessibleRepository[] }>
+      ApiResponse<{
+        repositories: AccessibleRepository[];
+        pagination?: PaginationInfo;
+      }>
     >(`/api/v1/github/repositories${query}`);
-    return res.data?.repositories || [];
+    return {
+      repositories: res.data?.repositories || [],
+      pagination: res.data?.pagination,
+    };
   },
 
   async selectRepository(repo: {
@@ -216,5 +242,14 @@ export const githubApi = {
       ApiResponse<{ repositories: SavedRepository[] }>
     >("/api/v1/github/repositories/selected");
     return res.data?.repositories || [];
+  },
+
+  async removeSelectedRepository(id: string): Promise<void> {
+    await apiRequest<ApiResponse<void>>(
+      `/api/v1/github/repositories/${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+      },
+    );
   },
 };

@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { gitHubService } from "./github.service";
-import type { CallbackQuery } from "./github.validation";
+import type { CallbackQuery, SearchReposQuery } from "./github.validation";
 import { env } from "../../config/env";
 import ApiResponse from "../../utils/response";
 import ApiError from "../../utils/errors";
@@ -87,13 +87,17 @@ export class GitHubController {
       if (!req.user?.id) {
         throw ApiError.unAuthorized("Unauthorized");
       }
-      const search =
-        typeof req.query.search === "string" ? req.query.search : undefined;
-      const repositories = await gitHubService.listAccessibleRepositories(
+      const query = req.query as unknown as SearchReposQuery;
+      const perPage = query.perPage || query.per_page;
+      const result = await gitHubService.listAccessibleRepositories(
         req.user.id,
-        search,
+        {
+          search: query.search,
+          page: query.page,
+          perPage,
+        },
       );
-      return ApiResponse.success(res, { repositories });
+      return ApiResponse.success(res, result);
     } catch (error) {
       next(error);
     }
@@ -109,6 +113,26 @@ export class GitHubController {
         req.body,
       );
       return ApiResponse.create(res, { repository });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async removeRepository(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user?.id) {
+        throw ApiError.unAuthorized("Unauthorized");
+      }
+      const repoId = String(req.params.id);
+      const repository = await gitHubService.removeSelectedRepository(
+        req.user.id,
+        repoId,
+      );
+      return ApiResponse.success(
+        res,
+        { repository },
+        "Repository removed successfully",
+      );
     } catch (error) {
       next(error);
     }

@@ -495,4 +495,137 @@ describe("GitHub App Integration & Repository Selection", () => {
       expect(response.body.message).toContain("rate limit");
     });
   });
+
+  describe("9. Repository Pagination & Validation", () => {
+    beforeEach(async () => {
+      // Connect User A
+      const installRes = await request(app)
+        .get("/api/v1/github/install")
+        .set("Authorization", `Bearer ${userAToken}`);
+      await request(app)
+        .get(`/api/v1/github/callback?installation_id=55667788&state=${installRes.body.data.state}`)
+        .set("Accept", "application/json");
+    });
+
+    it("should paginate accessible repositories", async () => {
+      // Page 1 with per_page = 2
+      const page1Res = await request(app)
+        .get("/api/v1/github/repositories?page=1&per_page=2")
+        .set("Authorization", `Bearer ${userAToken}`);
+
+      expect(page1Res.status).toBe(200);
+      expect(page1Res.body.data.repositories).toHaveLength(2);
+      expect(page1Res.body.data.pagination).toBeDefined();
+      expect(page1Res.body.data.pagination.page).toBe(1);
+      expect(page1Res.body.data.pagination.perPage).toBe(2);
+      expect(page1Res.body.data.pagination.total).toBe(3);
+      expect(page1Res.body.data.pagination.totalPages).toBe(2);
+
+      // Page 2 with per_page = 2
+      const page2Res = await request(app)
+        .get("/api/v1/github/repositories?page=2&per_page=2")
+        .set("Authorization", `Bearer ${userAToken}`);
+
+      expect(page2Res.status).toBe(200);
+      expect(page2Res.body.data.repositories).toHaveLength(1);
+      expect(page2Res.body.data.pagination.page).toBe(2);
+    });
+
+    it("should reject selecting a repository that does not belong to the user installation", async () => {
+      const response = await request(app)
+        .post("/api/v1/github/repositories/select")
+        .set("Authorization", `Bearer ${userAToken}`)
+        .send({
+          repoId: 9999, // Does not exist in mockRepos
+          name: "unauthorized-repo",
+          fullName: "attacker/unauthorized-repo",
+          ownerLogin: "attacker",
+          defaultBranch: "main",
+          isPrivate: true,
+          htmlUrl: "https://github.com/attacker/unauthorized-repo",
+        });
+
+      expect(response.status).toBe(403);
+      expect(response.body.success).toBe(false);
+      expect(response.body.message).toContain("not accessible");
+    });
+  });
+
+  describe("10. Removing Selected Repositories (DELETE /api/v1/github/repositories/:id)", () => {
+    let savedRepoId: string;
+
+    beforeEach(async () => {
+      // Connect User A and select a repository
+      const installRes = await request(app)
+        .get("/api/v1/github/install")
+        .set("Authorization", `Bearer ${userAToken}`);
+      await request(app)
+        .get(`/api/v1/github/callback?installation_id=55667788&state=${installRes.body.data.state}`)
+        .set("Accept", "application/json");
+
+      const selectRes = await request(app)
+        .post("/api/v1/github/repositories/select")
+        .set("Authorization", `Bearer ${userAToken}`)
+        .send({
+          repoId: 101,
+          name: "next-saas-starter",
+          fullName: "sachin/next-saas-starter",
+          ownerLogin: "sachin",
+          defaultBranch: "main",
+          isPrivate: false,
+          htmlUrl: "https://github.com/sachin/next-saas-starter",
+        });
+
+      savedRepoId = selectRes.body.data.repository.id;
+    });
+
+    it("should allow a user to remove a selected repository", async () => {
+      const response = await request(app)
+        .delete(`/api/v1/github/repositories/${savedRepoId}`)
+        .set("Authorization", `Bearer ${userAToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+
+      // Verify it is no longer returned in selected repositories
+      const listRes = await request(app)
+        .get("/api/v1/github/repositories/selected")
+        .set("Authorization", `Bearer ${userAToken}`);
+
+      expect(listRes.body.data.repositories).toHaveLength(0);
+
+      // Verify that the repository is now selectable again in accessible repositories
+      const accessibleRes = await request(app)
+        .get("/api/v1/github/repositories")
+        .set("Authorization", `Bearer ${userAToken}`);
+
+      const found = accessibleRes.body.data.repositories.find((r: any) => r.id === 101);
+      expect(found.isSelected).toBe(false);
+    });
+
+    it("should prevent User B from removing User A's selected repository", async () => {
+      const response = await request(app)
+        .delete(`/api/v1/github/repositories/${savedRepoId}`)
+        .set("Authorization", `Bearer ${userBToken}`);
+
+      expect(response.status).toBe(404);
+      expect(response.body.success).toBe(false);
+
+      // Verify User A's repository is still intact
+      const listRes = await request(app)
+        .get("/api/v1/github/repositories/selected")
+        .set("Authorization", `Bearer ${userAToken}`);
+
+      expect(listRes.body.data.repositories).toHaveLength(1);
+    });
+
+    it("should return 404 when removing non-existent repository", async () => {
+      const response = await request(app)
+        .delete("/api/v1/github/repositories/non-existent-repo-id")
+        .set("Authorization", `Bearer ${userAToken}`);
+
+      expect(response.status).toBe(404);
+      expect(response.body.success).toBe(false);
+    });
+  });
 });
